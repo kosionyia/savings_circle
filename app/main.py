@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from services.db import create_db_and_tables
 
 # Import models so SQLModel registers the tables
-from schemas import user_schema, circles_schema, contribution_schema, membership_schema, payout_schema
+from models import user, circles, contribution, membership, payout
 
 app = FastAPI(
     title="Ajo Savings Circle API",

@@ -8,8 +8,13 @@ class Contribution(SQLModel, table=True):
     )
 
     id: int | None = Field(default=None, primary_key=True)
-    user_id: int
-    circle_id: int
+
+    user_id: int = Field(foreign_key="user.id")
+    circle_id: int = Field(foreign_key="circle.id")
+
     amount: int
     week: str
-    created_at: datetime
+
+    confirmed: bool = False
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)

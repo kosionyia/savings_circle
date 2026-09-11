@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from services.db import create_db_and_tables
+from routes.auth import router as auth_router
 
 # Import models so SQLModel registers the tables
 from models import user, circles, contribution, membership, payout
@@ -19,3 +20,5 @@ def on_startup():
 @app.get("/")
 def root():
     return {"message": "Welcome to Ajo Savings Circle API"}
+
+app.include_router(auth_router)

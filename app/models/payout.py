@@ -1,5 +1,6 @@
-from sqlmodel import SQLModel, Field
 from datetime import datetime
+
+from sqlmodel import Field, SQLModel
 from sqlalchemy import UniqueConstraint
 
 
@@ -12,5 +13,5 @@ class Payout(SQLModel, table=True):
     circle_id: int = Field(foreign_key="circle.id")
     user_id: int = Field(foreign_key="user.id")
     amount: int
-    week: str
-    date_created: datetime
+    week: int
+    date_created: datetime = Field(default_factory=datetime.utcnow)

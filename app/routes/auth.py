@@ -1,13 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 
-from services.db import get_session
-from models.user import User, UserRole
-from schemas.auth import UserRegister, UserResponse
-from services.security import hash_password
-from schemas.auth import TokenResponse, UserLogin
-from services.security import create_access_token, verify_password
-
+from app.models.user import User, UserRole
+from app.schemas.auth import TokenResponse, UserRegister, UserResponse
+from app.services.db import get_session
+from app.services.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -31,12 +29,10 @@ def register_user(
             detail="Email is already registered",
         )
 
-    hashed_password = hash_password(user_data.password)
-
     user = User(
         name=user_data.name,
         email=user_data.email,
-        hashed_password=hashed_password,
+        hashed_password=hash_password(user_data.password),
         role=UserRole.MEMBER,
     )
 
@@ -46,25 +42,25 @@ def register_user(
 
     return user
 
+
 @router.post(
     "/login",
     response_model=TokenResponse,
+    status_code=status.HTTP_200_OK,
 )
 def login_user(
-    user_data: UserLogin,
+    form_data: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_session),
 ):
     user = session.exec(
-        select(User).where(User.email == user_data.email)
+        select(User).where(User.email == form_data.username)
     ).first()
 
-    if not user or not verify_password(
-        user_data.password,
-        user.hashed_password,
-    ):
+    if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     token = create_access_token(user.id)

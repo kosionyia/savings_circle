@@ -8,8 +8,8 @@ FastAPI backend built with **SQLModel + SQLite**, JWT authentication, and a bank
 
 ## SYSTEM ARCHITECTURE
 
-![ARCHITECTURAL DESIGN](https://lucid.app/lucidchart/00b8cebe-00e8-4656-b770-ea246dacb7f9/edit?viewport_loc=-331%2C-2464%2C3515%2C1714%2C0_0&invitationId=inv_e8c7c66a-25e1-48f9-af07-a411da3973dd)
 
+ [https://lucid.app/lucidchart/00b8cebe-00e8-4656-b770-ea246dacb7f9/edit?viewport_loc=-331%2C-2464%2C3515%2C1714%2C0_0&invitationId=inv_e8c7c66a-25e1-48f9-af07-a411da3973dd]
 
 ## Table of Contents
 

@@ -3,34 +3,19 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.routes.auth import router as auth_router
 from app.routes.bank import router as bank_router
 from app.routes.circles import router as circles_router
 from app.routes.contributions import router as contributions_router
 from app.routes.payouts import router as payouts_router
+from app.routes.admin import router as admin_router
 from app.services.db import create_db_and_tables, seed_demo_users
 
 # Register tables with SQLModel
-import app.models  # noqa: F401
+import app.models  as _models
 
-tags_metadata = [
-    {
-        "name": "Authentication",
-            },
-    {
-        "name": "Circles",
-            },
-    {
-        "name": "Contributions",
-        },
-    {
-        "name": "Payouts",
-           },
-    {
-        "name": "Bank",
-          },
-]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -41,13 +26,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Ajo — The Savings Circle",
-    description=(
-        "A weekly savings circle: members pay in, one person collects the pot by turn, "
-        "and the bank's robot confirms transfers that have actually cleared."
-    ),
-    openapi_tags=tags_metadata,
+    description=
+        "A weekly savings circle: members pay in, one person collects the pot by turn, and the bank's robot confirms transfers that have actually cleared.",
+    default_response_class=JSONResponse,
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_exception(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -68,6 +59,7 @@ async def add_process_time_header(request: Request, call_next):
 
 
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(circles_router)
 app.include_router(contributions_router)
 app.include_router(payouts_router)

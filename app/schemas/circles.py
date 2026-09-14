@@ -54,6 +54,12 @@ class MembershipOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+
+class GetCircle(CircleCreate):
+    id: int
+    current_week: int
+    member_count: int
+
 class CircleOut(BaseModel):
     id: int
     name: str

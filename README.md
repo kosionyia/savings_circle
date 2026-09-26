@@ -6,6 +6,13 @@ FastAPI backend built with **SQLModel + SQLite**, JWT authentication, and a bank
 
 ---
 
+# Why this project matters
+
+This project demonstrates backend engineering concepts including authentication and authorization, 
+payout rotation logic, idempotent bank confirmation, audit logging, relational data modeling, 
+and API design for a real-world savings workflow.
+
+
 ## SYSTEM ARCHITECTURE
 
 

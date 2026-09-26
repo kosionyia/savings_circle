@@ -241,16 +241,23 @@ Schemas (request/response) are in `app/schemas/` and map 1:1 to the routes above
 
 ## Configuration
 
-Constants in `app/services/security.py:6`:
+Copy the example environment file and configure the security values before starting the app:
 
-```python
-SECRET_KEY = "ajo-dev-secret-not-for-production"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
-BANK_API_KEY = "argon-secret-ajo"
+```bash
+cp .env.example .env
 ```
 
-> For production, move these to environment variables and use a strong, random `SECRET_KEY` and `BANK_API_KEY`.
+Set the following variables in `.env` or in your deployment environment:
+
+```dotenv
+SECRET_KEY=<strong-random-secret>
+BANK_API_KEY=<strong-random-api-key>
+```
+
+- `SECRET_KEY` signs and verifies user JWTs.
+- `BANK_API_KEY` authenticates requests to the bank endpoints through the `X-API-Key` header.
+
+Never commit `.env` or use the example placeholder values in production. The JWT algorithm is `HS256`, and access tokens expire after 60 minutes.
 
 Other app-level config:
 

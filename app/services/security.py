@@ -3,10 +3,10 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
 
-SECRET_KEY = "ajo-dev-secret-not-for-production"
+from app.config import BANK_API_KEY, SECRET_KEY
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
-BANK_API_KEY = "argon-secret-ajo"
 
 
 def hash_password(password: str) -> str:

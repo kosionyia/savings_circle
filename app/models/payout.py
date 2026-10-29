@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
+from sqlalchemy import DateTime, UniqueConstraint
 from sqlmodel import Field, SQLModel
-from sqlalchemy import UniqueConstraint
 
 
 class Payout(SQLModel, table=True):
@@ -14,4 +14,7 @@ class Payout(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id")
     amount: int
     week: int
-    date_created: datetime = Field(default_factory=datetime.utcnow)
+    date_created: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+    )

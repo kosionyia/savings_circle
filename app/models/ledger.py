@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
+from sqlalchemy import DateTime
 from sqlmodel import Field, SQLModel
 
 
@@ -10,4 +11,7 @@ class LedgerEntry(SQLModel, table=True):
     user_id: int
     amount: int
     week: int
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+    )

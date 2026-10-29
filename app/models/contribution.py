@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
+from sqlalchemy import DateTime, UniqueConstraint
 from sqlmodel import Field, SQLModel
-from sqlalchemy import UniqueConstraint
 
 
 class Contribution(SQLModel, table=True):
@@ -15,4 +15,7 @@ class Contribution(SQLModel, table=True):
     amount: int
     week: int
     confirmed: bool = False
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+    )

@@ -1,7 +1,8 @@
 /.mypy_cache
 /.venv
-/app/__pycache__
-/app/schemas/__pycache__
-/app/services/__pycache__
+__pycache__/
+/.pytest_cache
 ajo.db
 .env
+ajo-ledger-upgrade.md
+plan.md

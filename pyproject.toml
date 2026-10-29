@@ -3,5 +3,16 @@ name = "savings-circle"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+    "alembic>=1.20.1",
+    "bcrypt>=5.0.0",
     "fastapi[standard]>=0.141.1",
+    "psycopg[binary]>=3.3.6",
+    "pyjwt>=2.15.1",
+    "python-dotenv>=1.2.3",
+    "sqlmodel>=0.0.48",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
 ]

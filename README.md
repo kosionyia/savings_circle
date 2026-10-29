@@ -2,7 +2,7 @@
 
 > A weekly savings circle (Ajo/Esusu): members pay a fixed amount each week, one member collects the pot by turn, and a bank robot confirms transfers that have actually cleared.
 
-FastAPI backend built with **SQLModel + SQLite**, JWT authentication, and a bank-webhook ledger. Each circle has a turn order that determines the payout recipient for the current week.
+FastAPI backend built with **SQLModel + PostgreSQL**, JWT authentication, and a bank-webhook ledger. Each circle has a turn order that determines the payout recipient for the current week.
 
 ---
 
@@ -55,7 +55,7 @@ Turn recipient is calculated as `((current_week - 1) % member_count) + 1` mapped
 |-------|--------|
 | Framework | FastAPI `>=0.141.1` (with `[standard]` extras) |
 | ORM / Validation | SQLModel + Pydantic v2 |
-| Database | SQLite (`ajo.db` via `sqlite:///ajo.db`) |
+| Database | PostgreSQL 17 (Docker Compose), migrations via Alembic |
 | Auth | JWT (`HS256`, `PyJWT`), `bcrypt` password hashing |
 | Server | Uvicorn (via `fastapi[standard]`) |
 | Package Manager | `uv` (`pyproject.toml` + `uv.lock`) |
@@ -68,7 +68,9 @@ Turn recipient is calculated as `((current_week - 1) % member_count) + 1` mapped
 ```
 savings_circle/
 ├── app/
-│   ├── main.py              # FastAPI app, lifespan, CORS, routers, timing middleware
+│   ├── main.py              # FastAPI app, CORS, routers, timing middleware
+│   ├── config.py            # loads DATABASE_URL, SECRET_KEY, BANK_API_KEY from .env
+│   ├── seed.py              # demo users (python -m app.seed)
 │   ├── models/              # SQLModel tables
 │   │   ├── user.py          # User, UserRole (admin/member)
 │   │   ├── circles.py       # Circle
@@ -89,14 +91,17 @@ savings_circle/
 │   │   ├── payouts.py       # /circles/{id}/payouts
 │   │   └── bank.py          # /bank
 │   └── services/
-│       ├── db.py            # engine, create_db_and_tables(), seed_demo_users()
+│       ├── db.py            # engine, get_session()
 │       ├── security.py      # hash/verify password, JWT create, constants
 │       ├── dependency.py    # get_current_user, require_admin, require_bank_robot
 │       ├── helpers.py       # circle/member helpers, next_recipient logic
 │       └── ledger.py        # write_ledger_line (background task)
+├── migrations/              # Alembic migrations
+├── tests/                   # pytest suite (runs against ajo_test)
+├── docker-compose.yml       # local PostgreSQL
+├── alembic.ini
 ├── pyproject.toml
 ├── uv.lock
-├── ajo.db                   # SQLite DB (created on first run, gitignored if configured)
 └── README.md
 ```
 
@@ -105,34 +110,34 @@ savings_circle/
 ## Requirements
 
 - Python `>=3.14`
-- [`uv`](https://docs.astral.sh/uv/) (recommended) or `pip`
+- [`uv`](https://docs.astral.sh/uv/)
+- Docker with Compose
 
 ---
 
 ## Getting Started
 
-### 1. Clone and install
+### 1. Install and configure
 
 ```bash
-# with uv (recommended)
 uv sync
-
-# or with pip
-pip install "fastapi[standard]>=0.141.1"
-pip install sqlmodel bcrypt pyjwt python-multipart email-validator
+cp .env.example .env        # then fill in SECRET_KEY and BANK_API_KEY
 ```
 
-### 2. Run the server
+### 2. Start PostgreSQL, migrate, seed
 
 ```bash
-# with uv
+docker compose up -d --wait     # creates the ajo and ajo_test databases
+uv run alembic upgrade head     # apply migrations
+uv run python -m app.seed       # demo users
+```
+
+### 3. Run the server
+
+```bash
 uv run fastapi dev app/main.py
 # or
 uv run uvicorn app.main:app --reload
-
-# with pip/venv
-fastapi dev app/main.py
-uvicorn app.main:app --reload
 ```
 
 The server starts at `http://127.0.0.1:8000`.
@@ -141,15 +146,13 @@ The server starts at `http://127.0.0.1:8000`.
 - ReDoc: `http://127.0.0.1:8000/redoc`
 - OpenAPI JSON: `http://127.0.0.1:8000/openapi.json`
 
-On startup (`lifespan` in `app/main.py:36`) the app:
-- Creates all tables (`SQLModel.metadata.create_all`)
-- Seeds demo users if they do not exist
+The app does not create tables on startup; run the migrations first.
 
 ---
 
 ## Demo Users
 
-Seeded by `app/services/db.py:23` on first run (password for all is `secret123`):
+Seeded by `python -m app.seed` (password for all is `secret123`):
 
 | Name | Email | Role | Purpose |
 |------|-------|------|---------|
@@ -167,13 +170,13 @@ Create additional users via `POST /auth/register`.
 
 - Login via `POST /auth/login` (OAuth2 password flow, `username` = email) to receive `access_token`.
 - Send `Authorization: Bearer <token>` on all user-protected endpoints.
-- Tokens are `HS256`, expire in 60 minutes (`app/services/security.py:8`), secret `ajo-dev-secret-not-for-production`.
+- Tokens are `HS256`, expire in 60 minutes (`app/services/security.py`), signed with `SECRET_KEY` from `.env`.
 
 Dependency: `app/services/dependency.py:14` (`get_current_user`), `require_admin` for admin-only routes.
 
 ### Bank Robot API Key
 
-- Bank endpoints require `X-API-Key: argon-secret-ajo` (`app/services/security.py:9`).
+- Bank endpoints require `X-API-Key: <BANK_API_KEY>` from `.env`.
 - Dependency: `app/services/dependency.py:51` (`require_bank_robot`).
 
 ---
@@ -240,9 +243,14 @@ Schemas (request/response) are in `app/schemas/` and map 1:1 to the routes above
 
 ## Database
 
-- **Engine**: `sqlite:///ajo.db` (`app/services/db.py:6`) with `check_same_thread=False`.
-- **File**: `ajo.db` in the project root (created automatically; delete to reset).
-- **Migrations**: none — tables are created via `SQLModel.metadata.create_all` on startup. For a fresh DB, stop the server, delete `ajo.db`, and restart.
+- **Engine**: PostgreSQL 17 from `docker-compose.yml`, URL from `DATABASE_URL` (`app/services/db.py`).
+- **Migrations**: Alembic, in `migrations/versions/`. After changing a model:
+  ```bash
+  uv run alembic revision --autogenerate -m "describe the change"
+  # review the generated file, then
+  uv run alembic upgrade head
+  ```
+- **Reset**: `docker compose down -v && docker compose up -d --wait`, then migrate and seed again.
 
 ---
 
@@ -257,10 +265,13 @@ cp .env.example .env
 Set the following variables in `.env` or in your deployment environment:
 
 ```dotenv
+DATABASE_URL=postgresql+psycopg://ajo:ajo@localhost:5432/ajo
+TEST_DATABASE_URL=postgresql+psycopg://ajo:ajo@localhost:5432/ajo_test
 SECRET_KEY=<strong-random-secret>
 BANK_API_KEY=<strong-random-api-key>
 ```
 
+- `DATABASE_URL` is the app database; `TEST_DATABASE_URL` is used by the test suite only.
 - `SECRET_KEY` signs and verifies user JWTs.
 - `BANK_API_KEY` authenticates requests to the bank endpoints through the `X-API-Key` header.
 
@@ -279,7 +290,7 @@ Other app-level config:
 
 - Routers use `APIRouter` with `prefix` and `tags` matching `openapi_tags` in `app/main.py:17`.
 - Auth dependencies are in `app/services/dependency.py`; domain helpers in `app/services/helpers.py`.
-- Turn-order updates use a two-phase commit (park at 1000+, then set real order) to avoid SQLite unique constraint collisions (`app/routes/circles.py:219`).
+- Turn-order updates use a two-phase commit (park at 1000+, then set real order) to avoid unique constraint collisions on `(circle_id, turn_position)` (`app/routes/circles.py:219`).
 
 ### Useful commands
 
@@ -287,12 +298,12 @@ Other app-level config:
 # run with auto-reload
 uv run fastapi dev app/main.py
 
-# check lint/types (if configured)
-uv run mypy app
+# run the tests (each test is rolled back, so they never touch your dev data)
+uv run pytest
 
 # inspect DB directly
-sqlite3 ajo.db "SELECT * FROM user;"
-sqlite3 ajo.db "SELECT * FROM circle;"
+docker compose exec db psql -U ajo -d ajo -c 'SELECT * FROM "user";'
+docker compose exec db psql -U ajo -d ajo -c 'SELECT * FROM circle;'
 ```
 
 ### Example flow (via curl)

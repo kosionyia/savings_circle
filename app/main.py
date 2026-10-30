@@ -1,5 +1,4 @@
 import time
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,17 +10,6 @@ from app.routes.circles import router as circles_router
 from app.routes.contributions import router as contributions_router
 from app.routes.payouts import router as payouts_router
 from app.routes.admin import router as admin_router
-from app.services.db import create_db_and_tables, seed_demo_users
-
-# Register tables with SQLModel
-import app.models  as _models
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    create_db_and_tables()
-    seed_demo_users()
-    yield
 
 
 app = FastAPI(
@@ -29,7 +17,6 @@ app = FastAPI(
     description=
         "A weekly savings circle: members pay in, one person collects the pot by turn, and the bank's robot confirms transfers that have actually cleared.",
     default_response_class=JSONResponse,
-    lifespan=lifespan,
 )
 
 

@@ -11,7 +11,7 @@ from app.schemas.auth import  UserResponse
 from app.schemas.circles import CircleCreate, CircleOut, MembershipOut, TurnOrderIn
 from app.services.db import get_session
 from app.services.dependency import require_admin
-from app.services.helpers import assert_circle_admin, circle_members, get_circle_or_404, get_membership
+from app.services.helpers import assert_circle_admin, circle_members, get_circle_or_404
 
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -115,23 +115,12 @@ def admit_member(
             detail="User not found",
         )
 
-    existing_membership = get_membership(
-        session,
-        user.id,
-        circle.id,
-    )
-
-    print("USER:", user.id)
-    print("CIRCLE:", circle.id)
-    print("MEMBERSHIP:", existing_membership)
-
     membership = _add_member(session, circle, user)
     request.status = RequestStatus.APPROVED
     try:
         session.commit()
-    except IntegrityError as e:
+    except IntegrityError:
         session.rollback()
-        print("intedrity error:", e)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Already a member of this circle",

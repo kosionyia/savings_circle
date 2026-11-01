@@ -1,14 +1,14 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ContributeIn(BaseModel):
-    amount: int
+    amount_kobo: int = Field(gt=0)
 
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [{"amount": 5000}]
+            "examples": [{"amount_kobo": 500000}]
         }
     )
 
@@ -17,7 +17,7 @@ class ContributionOut(BaseModel):
     id: int
     user_id: int
     circle_id: int
-    amount: int
+    amount_kobo: int
     week: int
     confirmed: bool
     created_at: datetime

@@ -34,7 +34,7 @@ def test_admin_can_create_circle(client, make_user):
 
     response = client.post(
         "/admin/circles",
-        json={"name": "Surulere", "weekly_amount": 5000, "member_limit": 5},
+        json={"name": "Surulere", "weekly_amount_kobo": 500000, "member_limit": 5},
         headers=auth_headers(admin),
     )
     assert response.status_code == 201

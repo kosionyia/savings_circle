@@ -46,7 +46,7 @@ def confirm_transfer(
         contribution.id,
         contribution.circle_id,
         contribution.user_id,
-        contribution.amount,
+        contribution.amount_kobo,
         contribution.week,
     )
 

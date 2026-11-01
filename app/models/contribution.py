@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, UniqueConstraint
+from sqlalchemy import BigInteger, DateTime, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -12,7 +12,7 @@ class Contribution(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id")
     circle_id: int = Field(foreign_key="circle.id")
-    amount: int
+    amount_kobo: int = Field(sa_type=BigInteger)
     week: int
     confirmed: bool = False
     created_at: datetime = Field(

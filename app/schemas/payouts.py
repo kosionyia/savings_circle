@@ -17,7 +17,7 @@ class PayoutOut(BaseModel):
     id: int
     circle_id: int
     user_id: int
-    amount: int
+    amount_kobo: int
     week: int
     date_created: datetime
 

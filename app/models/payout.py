@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, UniqueConstraint
+from sqlalchemy import BigInteger, DateTime, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -12,7 +12,7 @@ class Payout(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     circle_id: int = Field(foreign_key="circle.id")
     user_id: int = Field(foreign_key="user.id")
-    amount: int
+    amount_kobo: int = Field(sa_type=BigInteger)
     week: int
     date_created: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

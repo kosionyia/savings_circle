@@ -29,7 +29,7 @@ def create_circle(
 ):
     circle = Circle(
         name=body.name,
-        weekly_amount=body.weekly_amount,
+        weekly_amount_kobo=body.weekly_amount_kobo,
         member_limit=body.member_limit,
         admin_id=current_user.id,
     )

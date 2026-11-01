@@ -45,7 +45,7 @@ def _circle_out(session: Session, circle: Circle) -> CircleOut:
         )
 
     pot = sum(
-        row.amount
+        row.amount_kobo
         for row in session.exec(
             select(Contribution).where(
                 Contribution.circle_id == circle.id,
@@ -63,11 +63,11 @@ def _circle_out(session: Session, circle: Circle) -> CircleOut:
     return CircleOut(
         id=circle.id,
         name=circle.name,
-        weekly_amount=circle.weekly_amount,
+        weekly_amount_kobo=circle.weekly_amount_kobo,
         member_limit=circle.member_limit,
         current_week=circle.current_week,
         admin_id=circle.admin_id,
-        pot=pot,
+        pot_kobo=pot,
         member_count=len(members),
         turn_order=turn_order,
         next_user_id=upcoming.user_id if upcoming else None,

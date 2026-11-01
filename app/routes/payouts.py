@@ -50,7 +50,7 @@ def declare_payout(
         )
 
     pot = sum(
-        row.amount
+        row.amount_kobo
         for row in session.exec(
             select(Contribution).where(
                 Contribution.circle_id == circle.id,
@@ -62,7 +62,7 @@ def declare_payout(
     payout = Payout(
         circle_id=circle.id,
         user_id=body.user_id,
-        amount=pot,
+        amount_kobo=pot,
         week=circle.current_week,
     )
     session.add(payout)

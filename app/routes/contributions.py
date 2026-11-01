@@ -26,16 +26,16 @@ def record_contribution(
     circle = get_circle_or_404(session, circle_id)
     require_membership(session, current_user.id, circle_id)
 
-    if body.amount != circle.weekly_amount:
+    if body.amount_kobo != circle.weekly_amount_kobo:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Contribution must be the weekly amount of {circle.weekly_amount}",
+            detail=f"Contribution must be the weekly amount of {circle.weekly_amount_kobo} kobo",
         )
 
     contribution = Contribution(
         user_id=current_user.id,
         circle_id=circle.id,
-        amount=body.amount,
+        amount_kobo=body.amount_kobo,
         week=circle.current_week,
         confirmed=False,
     )

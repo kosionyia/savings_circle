@@ -1,9 +1,9 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CircleCreate(BaseModel):
     name: str
-    weekly_amount: int
+    weekly_amount_kobo: int = Field(gt=0)
     member_limit: int
 
     model_config = ConfigDict(
@@ -11,7 +11,7 @@ class CircleCreate(BaseModel):
             "examples": [
                 {
                     "name": "Surulere Market Circle",
-                    "weekly_amount": 5000,
+                    "weekly_amount_kobo": 500000,
                     "member_limit": 5,
                 }
             ]
@@ -63,11 +63,11 @@ class GetCircle(CircleCreate):
 class CircleOut(BaseModel):
     id: int
     name: str
-    weekly_amount: int
+    weekly_amount_kobo: int
     member_limit: int
     current_week: int
     admin_id: int
-    pot: int
+    pot_kobo: int
     member_count: int
     turn_order: list[TurnMember]
     next_user_id: int | None

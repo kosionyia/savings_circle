@@ -6,3 +6,4 @@ ajo.db
 .env
 ajo-ledger-upgrade.md
 plan.md
+.vscode/

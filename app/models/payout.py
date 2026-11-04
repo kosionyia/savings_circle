@@ -1,7 +1,16 @@
 from datetime import datetime, timezone
+from enum import Enum
 
 from sqlalchemy import BigInteger, DateTime, UniqueConstraint
 from sqlmodel import Field, SQLModel
+
+class PayoutStatus(str, Enum):
+    SCHEDULED = "scheduled"
+    APPROVED = "approved"
+    INITIATED = "initiated"
+    CONFIRMED = "confirmed"
+    FAILED = "failed"
+    REVERSED = "reversed"
 
 
 class Payout(SQLModel, table=True):
@@ -17,4 +26,11 @@ class Payout(SQLModel, table=True):
     date_created: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
+    )
+    status: PayoutStatus = PayoutStatus.SCHEDULED
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+        # Refreshed automatically whenever the row is updated
+        sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)},
     )

@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.models.ledger import AccountType, OwnerType
+
 
 class BankConfirmIn(BaseModel):
     contribution_id: int
@@ -13,13 +15,19 @@ class BankConfirmIn(BaseModel):
     )
 
 
-class LedgerOut(BaseModel):
-    id: int
-    contribution_id: int
-    circle_id: int
-    user_id: int
-    amount: int
-    week: int
-    created_at: datetime
+class JournalLineOut(BaseModel):
+    account_id: int
+    owner_type: OwnerType
+    owner_id: int | None
+    account_type: AccountType
+    amount_kobo: int
 
-    model_config = ConfigDict(from_attributes=True)
+
+class JournalEntryOut(BaseModel):
+    id: int
+    reference: str
+    description: str
+    created_by: int | None
+    created_at: datetime
+    reverses_id: int | None
+    lines: list[JournalLineOut]

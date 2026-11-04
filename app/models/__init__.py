@@ -8,7 +8,6 @@ from app.models.ledger import (
     JournalEntry,
     JournalLine,
     LedgerAccount,
-    LedgerEntry,
     OwnerType,
 )
 
@@ -20,7 +19,6 @@ __all__ = [
     "MembershipRequest",
     "Contribution",
     "Payout",
-    "LedgerEntry",
     "LedgerAccount",
     "JournalEntry",
     "JournalLine",

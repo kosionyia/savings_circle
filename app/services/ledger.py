@@ -8,10 +8,8 @@ from app.models.ledger import (
     JournalEntry,
     JournalLine,
     LedgerAccount,
-    LedgerEntry,
     OwnerType,
 )
-from app.services.db import engine
 
 
 class LedgerError(ValueError):
@@ -22,26 +20,6 @@ class LedgerError(ValueError):
 class Line:
     account_id: int
     amount_kobo: int
-
-
-def write_ledger_line(
-    contribution_id: int,
-    circle_id: int,
-    user_id: int,
-    amount: int,
-    week: int,
-) -> None:
-    with Session(engine) as session:
-        session.add(
-            LedgerEntry(
-                contribution_id=contribution_id,
-                circle_id=circle_id,
-                user_id=user_id,
-                amount=amount,
-                week=week,
-            )
-        )
-        session.commit()
 
 
 def _find_account(
@@ -101,7 +79,7 @@ def post_entry(
     reference: str,
     description: str,
     lines: list[Line],
-    created_by: int,
+    created_by: int | None,
     reverses_id: int | None = None,
 ) -> JournalEntry:
     """Validate and write one balanced journal entry.
@@ -162,7 +140,7 @@ def post_entry(
 def reverse_entry(
     session: Session,
     entry_id: int,
-    created_by: int,
+    created_by: int | None,
     description: str | None = None,
 ) -> JournalEntry:
     """Cancel an entry by posting its mirror image; the original is untouched.

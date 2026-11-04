@@ -1,13 +1,22 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from collections import defaultdict
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.models.contribution import Contribution
-from app.models.ledger import LedgerEntry
-from app.schemas.bank import BankConfirmIn, LedgerOut
+from app.models.ledger import (
+    AccountType,
+    JournalEntry,
+    JournalLine,
+    LedgerAccount,
+    OwnerType,
+)
+from app.schemas.bank import BankConfirmIn, JournalEntryOut, JournalLineOut
 from app.schemas.contributions import ContributionOut
 from app.services.db import get_session
 from app.services.dependency import require_bank_robot
-from app.services.ledger import write_ledger_line
+from app.services.ledger import Line, get_or_create_account, post_entry
 
 router = APIRouter(prefix="/bank", tags=["Bank"])
 
@@ -19,7 +28,6 @@ router = APIRouter(prefix="/bank", tags=["Bank"])
 )
 def confirm_transfer(
     body: BankConfirmIn,
-    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
     _: str = Depends(require_bank_robot),
 ):
@@ -30,38 +38,84 @@ def confirm_transfer(
             detail="Contribution not found",
         )
 
+    already_confirmed = HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="This contribution is already confirmed",
+    )
     if contribution.confirmed:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This contribution is already confirmed",
-        )
+        raise already_confirmed
+
+    bank = get_or_create_account(
+        session, OwnerType.SYSTEM, None, AccountType.BANK_CLEARING
+    )
+    pot = get_or_create_account(
+        session, OwnerType.CIRCLE, contribution.circle_id, AccountType.CIRCLE_POT
+    )
 
     contribution.confirmed = True
     session.add(contribution)
-    session.commit()
+    try:
+        post_entry(
+            session,
+            reference=f"CONTRIB-{contribution.id}",
+            description=(
+                f"Contribution {contribution.id}: user {contribution.user_id}, "
+                f"circle {contribution.circle_id}, week {contribution.week}"
+            ),
+            lines=[
+                Line(bank.id, contribution.amount_kobo),
+                Line(pot.id, -contribution.amount_kobo),
+            ],
+            created_by=None,
+        )
+        # The confirmed flag and the journal entry commit together, or not at all
+        session.commit()
+    except IntegrityError:
+        # A simultaneous confirmation posted CONTRIB-{id} first
+        session.rollback()
+        raise already_confirmed
+
     session.refresh(contribution)
-
-    background_tasks.add_task(
-        write_ledger_line,
-        contribution.id,
-        contribution.circle_id,
-        contribution.user_id,
-        contribution.amount_kobo,
-        contribution.week,
-    )
-
     return contribution
 
 
 @router.get(
     "/ledger",
-    response_model=list[LedgerOut],
+    response_model=list[JournalEntryOut],
     status_code=status.HTTP_200_OK,
 )
 def read_ledger(
     session: Session = Depends(get_session),
     _: str = Depends(require_bank_robot),
 ):
-    return session.exec(
-        select(LedgerEntry).order_by(LedgerEntry.id)
+    entries = session.exec(select(JournalEntry).order_by(JournalEntry.id)).all()
+
+    lines_by_entry: dict[int, list[JournalLineOut]] = defaultdict(list)
+    rows = session.exec(
+        select(JournalLine, LedgerAccount)
+        .join(LedgerAccount, JournalLine.account_id == LedgerAccount.id)
+        .order_by(JournalLine.id)
     ).all()
+    for line, account in rows:
+        lines_by_entry[line.entry_id].append(
+            JournalLineOut(
+                account_id=account.id,
+                owner_type=account.owner_type,
+                owner_id=account.owner_id,
+                account_type=account.account_type,
+                amount_kobo=line.amount_kobo,
+            )
+        )
+
+    return [
+        JournalEntryOut(
+            id=entry.id,
+            reference=entry.reference,
+            description=entry.description,
+            created_by=entry.created_by,
+            created_at=entry.created_at,
+            reverses_id=entry.reverses_id,
+            lines=lines_by_entry[entry.id],
+        )
+        for entry in entries
+    ]

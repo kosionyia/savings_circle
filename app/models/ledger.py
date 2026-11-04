@@ -38,7 +38,8 @@ class JournalEntry(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     reference: str = Field(unique=True)
     description: str
-    created_by: int = Field(foreign_key="user.id")
+    # None means the system posted it (e.g. a bank confirmation)
+    created_by: int | None = Field(default=None, foreign_key="user.id")
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_type=DateTime(timezone=True),
@@ -61,15 +62,3 @@ class JournalLine(SQLModel, table=True):
     account_id: int = Field(foreign_key="ledger_account.id", index=True)
     amount_kobo: int = Field(sa_type=BigInteger)
 
-
-class LedgerEntry(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    contribution_id: int = Field(foreign_key="contribution.id")
-    circle_id: int
-    user_id: int
-    amount: int
-    week: int
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_type=DateTime(timezone=True),
-    )

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from sqlalchemy import BigInteger, cast, func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
@@ -72,6 +73,15 @@ def get_or_create_account(
     except IntegrityError:
         account = _find_account(session, owner_type, owner_id, account_type, currency)
     return account
+
+
+def account_balance(session: Session, account_id: int) -> int:
+    """Sum of every line on the account: positive = debit, negative = credit."""
+    # SUM over BIGINT returns NUMERIC (a Decimal in Python); cast back to int
+    total = func.coalesce(func.sum(JournalLine.amount_kobo), 0)
+    return session.exec(
+        select(cast(total, BigInteger)).where(JournalLine.account_id == account_id)
+    ).one()
 
 
 def post_entry(

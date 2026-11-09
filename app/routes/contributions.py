@@ -8,7 +8,7 @@ from app.schemas.contributions import ContributeIn, ContributionOut
 from app.services.db import get_session
 from app.services.dependency import get_current_user
 from app.services.helpers import get_circle_or_404, require_membership
-from app.services.idempotency import Idempotency, claim, request_hash, store_response
+from app.services.idempotency import Idempotency, request_hash, run_idempotent
 
 router = APIRouter(tags=["Contributions"])
 
@@ -42,22 +42,15 @@ def record_contribution(
             request.method, request.url.path, body.model_dump(mode="json")
         ),
     )
-    replay = claim(session, idem)
-    if replay is not None:
-        return replay
 
-    try:
+    def work() -> tuple[int, dict]:
         contribution = _create_contribution(session, circle_id, body, current_user)
-    except HTTPException:
-        # Errors are not stored: release the key so a corrected retry can run
-        session.rollback()
-        raise
+        return (
+            status.HTTP_201_CREATED,
+            ContributionOut.model_validate(contribution).model_dump(mode="json"),
+        )
 
-    response_body = ContributionOut.model_validate(contribution).model_dump(mode="json")
-    response = store_response(session, idem, status.HTTP_201_CREATED, response_body)
-    # The contribution and the stored response commit together
-    session.commit()
-    return response
+    return run_idempotent(session, idem, work)
 
 
 def _create_contribution(

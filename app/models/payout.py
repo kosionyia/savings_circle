@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import BigInteger, DateTime, UniqueConstraint
+from sqlalchemy import BigInteger, DateTime, Index, text
 from sqlmodel import Field, SQLModel
 
 class PayoutStatus(str, Enum):
@@ -15,13 +15,22 @@ class PayoutStatus(str, Enum):
 
 class Payout(SQLModel, table=True):
     __table_args__ = (
-        UniqueConstraint("circle_id", "week"),
+        # One live payout per turn. A reversed payout frees the turn so the
+        # admin can schedule it again.
+        Index(
+            "uq_payout_live_turn",
+            "circle_id",
+            "week",
+            unique=True,
+            postgresql_where=text("status <> 'REVERSED'"),
+        ),
     )
 
     id: int | None = Field(default=None, primary_key=True)
     circle_id: int = Field(foreign_key="circle.id")
     user_id: int = Field(foreign_key="user.id")
-    amount_kobo: int = Field(sa_type=BigInteger)
+    # Set at initiate, from the pot's ledger balance at that moment
+    amount_kobo: int | None = Field(default=None, sa_type=BigInteger)
     week: int
     date_created: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -34,3 +43,13 @@ class Payout(SQLModel, table=True):
         # Refreshed automatically whenever the row is updated
         sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)},
     )
+
+
+
+
+def greet(char):
+    for char in char:
+      return char
+
+
+print(greet(hello))

@@ -1,5 +1,6 @@
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -90,3 +91,29 @@ def store_response(
     row.response_body = body
     session.add(row)
     return JSONResponse(status_code=status_code, content=body)
+
+
+def run_idempotent(
+    session: Session,
+    idem: Idempotency,
+    work: Callable[[], tuple[int, dict]],
+) -> JSONResponse:
+    """Replay a stored response, or run `work` and store what it returns.
+
+    `work` flushes but never commits; it returns (status_code, body). The
+    work, the key and the stored response then commit together.
+    """
+    replay = claim(session, idem)
+    if replay is not None:
+        return replay
+
+    try:
+        status_code, body = work()
+    except HTTPException:
+        # Errors are not stored: release the key so a corrected retry can run
+        session.rollback()
+        raise
+
+    response = store_response(session, idem, status_code, body)
+    session.commit()
+    return response

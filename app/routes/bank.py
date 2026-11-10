@@ -21,6 +21,49 @@ from app.services.ledger import Line, get_or_create_account, post_entry
 router = APIRouter(prefix="/bank", tags=["Bank"])
 
 
+def _post_contribution(session: Session, contribution: Contribution) -> None:
+    """Pass the member's money through their wallet on its way to the pot.
+
+    Two entries rather than one straight bank -> pot entry, so every naira
+    the member puts in appears on their wallet statement. The wallet nets
+    to 0; bank_clearing and the pot end up exactly as a direct posting would
+    leave them.
+    """
+    bank = get_or_create_account(
+        session, OwnerType.SYSTEM, None, AccountType.BANK_CLEARING
+    )
+    wallet = get_or_create_account(
+        session, OwnerType.USER, contribution.user_id, AccountType.MEMBER_WALLET
+    )
+    pot = get_or_create_account(
+        session, OwnerType.CIRCLE, contribution.circle_id, AccountType.CIRCLE_POT
+    )
+    amount = contribution.amount_kobo
+
+    # Posted first: a simultaneous confirmation of the same contribution
+    # collides here, on the unique reference, before anything else is written
+    post_entry(
+        session,
+        reference=f"CONTRIB-{contribution.id}",
+        description=(
+            f"Contribution {contribution.id}: received from the bank for "
+            f"circle {contribution.circle_id}, week {contribution.week}"
+        ),
+        lines=[Line(bank.id, amount), Line(wallet.id, -amount)],
+        created_by=None,
+    )
+    post_entry(
+        session,
+        reference=f"CONTRIB-{contribution.id}-POT",
+        description=(
+            f"Contribution {contribution.id}: paid into circle "
+            f"{contribution.circle_id}'s pot for week {contribution.week}"
+        ),
+        lines=[Line(wallet.id, amount), Line(pot.id, -amount)],
+        created_by=None,
+    )
+
+
 @router.post(
     "/confirm",
     response_model=ContributionOut,
@@ -45,30 +88,11 @@ def confirm_transfer(
     if contribution.confirmed:
         raise already_confirmed
 
-    bank = get_or_create_account(
-        session, OwnerType.SYSTEM, None, AccountType.BANK_CLEARING
-    )
-    pot = get_or_create_account(
-        session, OwnerType.CIRCLE, contribution.circle_id, AccountType.CIRCLE_POT
-    )
-
     contribution.confirmed = True
     session.add(contribution)
     try:
-        post_entry(
-            session,
-            reference=f"CONTRIB-{contribution.id}",
-            description=(
-                f"Contribution {contribution.id}: user {contribution.user_id}, "
-                f"circle {contribution.circle_id}, week {contribution.week}"
-            ),
-            lines=[
-                Line(bank.id, contribution.amount_kobo),
-                Line(pot.id, -contribution.amount_kobo),
-            ],
-            created_by=None,
-        )
-        # The confirmed flag and the journal entry commit together, or not at all
+        _post_contribution(session, contribution)
+        # The confirmed flag and both journal entries commit together, or not at all
         session.commit()
     except IntegrityError:
         # A simultaneous confirmation posted CONTRIB-{id} first

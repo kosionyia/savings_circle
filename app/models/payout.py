@@ -46,10 +46,3 @@ class Payout(SQLModel, table=True):
 
 
 
-
-def greet(char):
-    for char in char:
-      return char
-
-
-print(greet(hello))

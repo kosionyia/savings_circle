@@ -8,6 +8,7 @@ from app.routes.auth import router as auth_router
 from app.routes.bank import router as bank_router
 from app.routes.circles import router as circles_router
 from app.routes.contributions import router as contributions_router
+from app.routes.members import router as members_router
 from app.routes.payouts import router as payouts_router
 from app.routes.admin import router as admin_router
 
@@ -50,4 +51,5 @@ app.include_router(admin_router)
 app.include_router(circles_router)
 app.include_router(contributions_router)
 app.include_router(payouts_router)
+app.include_router(members_router)
 app.include_router(bank_router)

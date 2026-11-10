@@ -127,6 +127,83 @@ def pot_balance(
     return -account_balance(session, pot.id, as_of)
 
 
+@dataclass(frozen=True)
+class StatementLine:
+    entry_id: int
+    reference: str
+    description: str
+    posted_at: datetime
+    amount_kobo: int
+    # The account's balance straight after this line
+    balance_kobo: int
+
+
+@dataclass(frozen=True)
+class Statement:
+    opening_balance_kobo: int
+    lines: list[StatementLine]
+    closing_balance_kobo: int
+
+
+def account_statement(
+    session: Session,
+    account_id: int,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> Statement:
+    """An account's lines posted in [start, end), each with a running balance.
+
+    Raw ledger signs (positive = debit); callers flip them for display.
+    start=None means from the first entry, end=None means up to now.
+    """
+    _require_aware(start)
+    _require_aware(end)
+    opening = account_balance(session, account_id, as_of=start) if start else 0
+
+    # Same order everywhere, with the line id breaking ties, so the running
+    # balance is deterministic
+    order = (JournalEntry.created_at, JournalLine.id)
+    # ROWS, not the default RANGE: RANGE treats rows that tie on the ORDER BY
+    # as one group and gives them all the same running total
+    running = func.sum(JournalLine.amount_kobo).over(order_by=order, rows=(None, 0))
+    query = (
+        select(
+            JournalEntry.id,
+            JournalEntry.reference,
+            JournalEntry.description,
+            JournalEntry.created_at,
+            JournalLine.amount_kobo,
+            cast(running, BigInteger),
+        )
+        .select_from(JournalLine)
+        .join(JournalEntry, JournalLine.entry_id == JournalEntry.id)
+        .where(JournalLine.account_id == account_id)
+        .order_by(*order)
+    )
+    # WHERE runs before the window function, so the running sum starts from 0
+    # at `start`; adding the opening balance makes it the true balance
+    if start is not None:
+        query = query.where(JournalEntry.created_at >= start)
+    if end is not None:
+        query = query.where(JournalEntry.created_at < end)
+
+    lines = [
+        StatementLine(
+            entry_id=entry_id,
+            reference=reference,
+            description=description,
+            posted_at=posted_at,
+            amount_kobo=amount,
+            balance_kobo=opening + running_total,
+        )
+        for entry_id, reference, description, posted_at, amount, running_total in (
+            session.exec(query).all()
+        )
+    ]
+    closing = lines[-1].balance_kobo if lines else opening
+    return Statement(opening_balance_kobo=opening, lines=lines, closing_balance_kobo=closing)
+
+
 def post_entry(
     session: Session,
     reference: str,

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import BigInteger, cast, func
 from sqlalchemy.exc import IntegrityError
@@ -23,13 +24,14 @@ class Line:
     amount_kobo: int
 
 
-def _find_account(
+def find_account(
     session: Session,
     owner_type: OwnerType,
     owner_id: int | None,
     account_type: AccountType,
-    currency: str,
+    currency: str = "NGN",
 ) -> LedgerAccount | None:
+    """Look an account up without creating it; safe to use on read-only paths."""
     return session.exec(
         select(LedgerAccount).where(
             LedgerAccount.owner_type == owner_type,
@@ -55,7 +57,7 @@ def get_or_create_account(
     if owner_type != OwnerType.SYSTEM and owner_id is None:
         raise LedgerError(f"{owner_type.value} accounts need an owner_id")
 
-    account = _find_account(session, owner_type, owner_id, account_type, currency)
+    account = find_account(session, owner_type, owner_id, account_type, currency)
     if account is not None:
         return account
 
@@ -71,17 +73,58 @@ def get_or_create_account(
         with session.begin_nested():
             session.add(account)
     except IntegrityError:
-        account = _find_account(session, owner_type, owner_id, account_type, currency)
+        account = find_account(session, owner_type, owner_id, account_type, currency)
     return account
 
 
-def account_balance(session: Session, account_id: int) -> int:
-    """Sum of every line on the account: positive = debit, negative = credit."""
+def _require_aware(as_of: datetime | None) -> None:
+    # A naive time would be read in the DB session's timezone, which
+    # silently shifts the cut-off
+    if as_of is not None and as_of.tzinfo is None:
+        raise ValueError("as_of must be timezone-aware")
+
+
+def account_balance(
+    session: Session,
+    account_id: int,
+    as_of: datetime | None = None,
+) -> int:
+    """Sum of the account's lines: positive = debit, negative = credit.
+
+    With as_of, only entries posted strictly before that moment count, so
+    account_balance(session, id, as_of=start) is the opening balance at start.
+    """
     # SUM over BIGINT returns NUMERIC (a Decimal in Python); cast back to int
     total = func.coalesce(func.sum(JournalLine.amount_kobo), 0)
-    return session.exec(
-        select(cast(total, BigInteger)).where(JournalLine.account_id == account_id)
-    ).one()
+    query = (
+        select(cast(total, BigInteger))
+        .select_from(JournalLine)
+        .where(JournalLine.account_id == account_id)
+    )
+    _require_aware(as_of)
+    if as_of is not None:
+        query = query.join(JournalEntry, JournalLine.entry_id == JournalEntry.id).where(
+            JournalEntry.created_at < as_of
+        )
+    return session.exec(query).one()
+
+
+def pot_balance(
+    session: Session,
+    circle_id: int,
+    as_of: datetime | None = None,
+) -> int:
+    """Confirmed money held in a circle's pot, in kobo (zero or more).
+
+    The pot records money owed to the circle, so it carries a credit
+    (negative) balance; flipping it gives the amount held. Read-only: a
+    circle whose pot account doesn't exist yet simply holds 0.
+    """
+    _require_aware(as_of)
+    pot = find_account(session, OwnerType.CIRCLE, circle_id, AccountType.CIRCLE_POT)
+    if pot is None:
+        return 0
+    return -account_balance(session, pot.id, as_of)
 
 
 def post_entry(

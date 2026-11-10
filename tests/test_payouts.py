@@ -1,91 +1,13 @@
-import itertools
-
 import pytest
 from sqlalchemy import func
 from sqlmodel import select
 
-from app.config import BANK_API_KEY
-from app.models.circles import Circle
 from app.models.ledger import AccountType, JournalEntry, JournalLine, OwnerType
-from app.models.membership import Membership
 from app.models.payout import Payout, PayoutStatus
 from app.models.user import UserRole
 from app.services.idempotency import REPLAY_HEADER
 from app.services.ledger import account_balance, get_or_create_account
-from tests.conftest import auth_headers
-
-WEEKLY = 500000
-_keys = itertools.count()
-
-
-def new_key() -> str:
-    return f"key-{next(_keys)}"
-
-
-@pytest.fixture
-def admin(make_user):
-    return make_user(name="Ade", role=UserRole.ADMIN)
-
-
-@pytest.fixture
-def members(make_user):
-    return [make_user(name="Amaka"), make_user(name="Chinedu"), make_user(name="Bola")]
-
-
-@pytest.fixture
-def circle(session, admin, members):
-    circle = Circle(
-        name="Surulere", weekly_amount_kobo=WEEKLY, member_limit=5, admin_id=admin.id
-    )
-    session.add(circle)
-    session.flush()
-    for position, member in enumerate(members, start=1):
-        session.add(
-            Membership(user_id=member.id, circle_id=circle.id, turn_position=position)
-        )
-    session.commit()
-    session.refresh(circle)
-    return circle
-
-
-@pytest.fixture
-def funded(client, circle, members):
-    """Every member contributes and the bank confirms: the pot holds ₦15,000."""
-    for member in members:
-        response = client.post(
-            f"/circles/{circle.id}/contributions",
-            json={"amount_kobo": WEEKLY},
-            headers={**auth_headers(member), "Idempotency-Key": new_key()},
-        )
-        client.post(
-            "/bank/confirm",
-            json={"contribution_id": response.json()["id"]},
-            headers={"X-API-Key": BANK_API_KEY},
-        )
-    return circle
-
-
-def schedule(client, admin, circle, user_id, key=None):
-    return client.post(
-        f"/circles/{circle.id}/payouts",
-        json={"user_id": user_id},
-        headers={**auth_headers(admin), "Idempotency-Key": key or new_key()},
-    )
-
-
-def act(client, user, payout_id, action, key=None):
-    return client.post(
-        f"/payouts/{payout_id}/{action}",
-        headers={**auth_headers(user), "Idempotency-Key": key or new_key()},
-    )
-
-
-def advance(client, admin, payout_id, *actions):
-    response = None
-    for action in actions:
-        response = act(client, admin, payout_id, action)
-        assert response.status_code == 200, response.json()
-    return response
+from tests.conftest import WEEKLY, act, advance, auth_headers, new_key, schedule
 
 
 def balances(session, circle, user_id):

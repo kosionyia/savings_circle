@@ -74,6 +74,12 @@ class CircleOut(BaseModel):
     next_user_name: str | None
 
 
+class CircleBalance(BaseModel):
+    circle_id: int
+    # Confirmed money waiting to be paid out, derived from the ledger
+    pot_kobo: int
+
+
 class MemberHealth(BaseModel):
     user_id: int
     name: str

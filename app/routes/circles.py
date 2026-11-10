@@ -11,6 +11,7 @@ RequestStatus
 )
 from app.models.user import User
 from app.schemas.circles import (
+    CircleBalance,
     CircleHealth,
     CircleOut,
     MemberHealth,
@@ -27,6 +28,7 @@ from app.services.helpers import (
     next_turn_position,
     require_membership,
 )
+from app.services.ledger import pot_balance
 
 router = APIRouter(prefix="/circles", tags=["Circles"])
 
@@ -44,16 +46,6 @@ def _circle_out(session: Session, circle: Circle) -> CircleOut:
             )
         )
 
-    pot = sum(
-        row.amount_kobo
-        for row in session.exec(
-            select(Contribution).where(
-                Contribution.circle_id == circle.id,
-                Contribution.week == circle.current_week,
-            )
-        ).all()
-    )
-
     upcoming = next_recipient(session, circle)
     next_name = None
     if upcoming:
@@ -67,7 +59,8 @@ def _circle_out(session: Session, circle: Circle) -> CircleOut:
         member_limit=circle.member_limit,
         current_week=circle.current_week,
         admin_id=circle.admin_id,
-        pot_kobo=pot,
+        # Only bank-confirmed money counts, so this comes from the ledger
+        pot_kobo=pot_balance(session, circle.id),
         member_count=len(members),
         turn_order=turn_order,
         next_user_id=upcoming.user_id if upcoming else None,
@@ -132,6 +125,23 @@ def get_circle(
         require_membership(session, current_user.id, circle_id)
 
     return _circle_out(session, circle)
+
+
+@router.get(
+    "/{circle_id}/balance",
+    response_model=CircleBalance,
+    status_code=status.HTTP_200_OK,
+)
+def circle_balance(
+    circle_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    circle = get_circle_or_404(session, circle_id)
+    if current_user.id != circle.admin_id:
+        require_membership(session, current_user.id, circle_id)
+
+    return CircleBalance(circle_id=circle.id, pot_kobo=pot_balance(session, circle.id))
 
 
 @router.post(
